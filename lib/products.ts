@@ -11,7 +11,7 @@ export const PRODUCTS: Product[] = [
   { level: 4,  name: "Canvas Tote Bag",         image: "/images/level-04-canvas-tote.jpeg" },
   { level: 5,  name: "Quilted Bag",             image: "/images/level-05-quilted-bag.jpeg" },
   { level: 6,  name: "Resistance Band Set",     image: "/images/level-06-resistance-band.jpeg" },
-  { level: 7,  name: "Stanley Tumbler",         image: "/images/level-07-stanley-tumbler.png" },
+  { level: 7,  name: "Stanley Tumbler",         image: "/images/level-07-stanley-tumbler.jpeg" },
   { level: 8,  name: "Wrap-Around Weights",     image: "/images/level-08-wrap-weights.jpeg" },
   { level: 9,  name: "Duffel Bag",              image: "/images/level-09-duffel-bag.png" },
   { level: 10, name: "Tego Yoga Mat",           image: "/images/level-10-tego-mat.png" },
