@@ -241,7 +241,7 @@ function Done({ name }: { name: string }) {
         <span className="italic text-sage-700">you.</span>
       </h1>
       <p className="mt-6 text-ink-700 text-base md:text-lg leading-relaxed">
-        Your picks have been saved. The team will use these to choose the gifts we send out next.
+        Thank you for your valuable response, it helps us make your experience better.
       </p>
       <p className="mt-3 text-ink-500 text-sm">
         Feel free to share this link with friends in the Habuild community.
