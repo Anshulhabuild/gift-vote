@@ -1,4 +1,6 @@
-import { sql } from "@vercel/postgres";
+import { neon } from "@neondatabase/serverless";
+
+export const sql = neon(process.env.POSTGRES_URL!);
 
 let initialized = false;
 

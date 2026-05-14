@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { sql } from "@vercel/postgres";
-import { ensureSchema } from "@/lib/db";
+import { sql, ensureSchema } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,9 +30,9 @@ export async function GET() {
     `;
 
     return NextResponse.json({
-      tallies: tallies.rows,
-      totals: totals.rows[0] ?? { total_votes: 0, unique_sessions: 0 },
-      recent: recent.rows,
+      tallies,
+      totals: totals[0] ?? { total_votes: 0, unique_sessions: 0 },
+      recent,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
