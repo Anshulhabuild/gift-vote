@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { PAIRS, getProduct } from "@/lib/products";
+import { PAIRS, PRODUCTS, getProduct } from "@/lib/products";
 
 type Tally = { level_low: number; level_high: number; winner_level: number; votes: number };
 type Recent = { voter_name: string | null; level_low: number; level_high: number; winner_level: number; created_at: string };
@@ -11,6 +11,32 @@ type Payload = {
   totals: { total_votes: number; unique_sessions: number };
   recent: Recent[];
 };
+
+function computeLeaderboard(tallies: Tally[]) {
+  const wins: Record<number, number> = {};
+  const appearances: Record<number, number> = {};
+
+  PAIRS.forEach((p) => {
+    appearances[p.low] = (appearances[p.low] || 0);
+    appearances[p.high] = (appearances[p.high] || 0);
+  });
+
+  tallies.forEach((t) => {
+    wins[t.winner_level] = (wins[t.winner_level] || 0) + t.votes;
+    const loser = t.winner_level === t.level_low ? t.level_high : t.level_low;
+    appearances[t.winner_level] = (appearances[t.winner_level] || 0) + t.votes;
+    appearances[loser] = (appearances[loser] || 0) + t.votes;
+  });
+
+  return PRODUCTS
+    .map((p) => ({
+      ...p,
+      wins: wins[p.level] || 0,
+      total: appearances[p.level] || 0,
+      rate: appearances[p.level] ? (wins[p.level] || 0) / appearances[p.level] : 0,
+    }))
+    .sort((a, b) => b.wins - a.wins || b.rate - a.rate);
+}
 
 export default function ResultsPage() {
   const [data, setData] = useState<Payload | null>(null);
@@ -36,6 +62,8 @@ export default function ResultsPage() {
     const id = setInterval(load, 15000);
     return () => clearInterval(id);
   }, []);
+
+  const leaderboard = data ? computeLeaderboard(data.tallies) : [];
 
   return (
     <main className="min-h-dvh px-5 md:px-10 py-10 max-w-5xl mx-auto">
@@ -67,6 +95,50 @@ export default function ResultsPage() {
       )}
       {loading && !data && <p className="text-ink-500">Loading…</p>}
 
+      {/* Leaderboard */}
+      {leaderboard.length > 0 && (
+        <section className="mb-10">
+          <h2 className="font-display text-2xl text-ink-900 mb-4">Overall ranking</h2>
+          <div className="bg-white rounded-2xl border border-ink-900/[0.06] overflow-hidden shadow-sm">
+            {leaderboard.map((p, i) => {
+              const barWidth = leaderboard[0].wins > 0 ? (p.wins / leaderboard[0].wins) * 100 : 0;
+              const medals: Record<number, string> = { 0: "🥇", 1: "🥈", 2: "🥉" };
+              return (
+                <div
+                  key={p.level}
+                  className="flex items-center gap-4 px-4 md:px-5 py-3 border-t first:border-t-0 border-ink-900/[0.05]"
+                >
+                  <div className="w-6 text-center shrink-0">
+                    {medals[i] ?? (
+                      <span className="text-[11px] text-ink-500 font-medium">#{i + 1}</span>
+                    )}
+                  </div>
+                  <div className="relative w-10 h-10 shrink-0 rounded-lg overflow-hidden bg-cream-100">
+                    <Image src={p.image} alt={p.name} fill sizes="40px" className="object-contain p-0.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-sm font-medium text-ink-900 truncate">{p.name}</span>
+                      <span className="text-xs text-ink-500 shrink-0">
+                        {p.wins} wins · {Math.round(p.rate * 100)}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-ink-900/[0.06] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-sage-600 transition-[width] duration-700"
+                        style={{ width: `${barWidth}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Matchup breakdown */}
+      <h2 className="font-display text-2xl text-ink-900 mb-4">Matchup breakdown</h2>
       <div className="space-y-4">
         {PAIRS.map((p) => {
           const low = getProduct(p.low);
