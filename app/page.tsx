@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
-import { PAIRS, PRODUCTS, getProduct } from "@/lib/products";
+import { PRODUCTS, getProduct } from "@/lib/products";
 
 type Stage = "intro" | "playing" | "done";
 
@@ -10,6 +10,8 @@ function makeSessionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return "s_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
+
+const TOTAL_ROUNDS = PRODUCTS.length - 1; // 10
 
 export default function HomePage() {
   const [stage, setStage] = useState<Stage>("intro");
@@ -19,17 +21,21 @@ export default function HomePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [picks, setPicks] = useState<number[]>([]);
+  const [champion, setChampion] = useState<number | null>(null);
 
   useEffect(() => { setSessionId(makeSessionId()); }, []);
 
-  const pair = PAIRS[round];
-  const lowP = useMemo(() => (pair ? getProduct(pair.low) : null), [pair]);
-  const highP = useMemo(() => (pair ? getProduct(pair.high) : null), [pair]);
+  // Round 0: products[0] vs products[1]
+  // Round i (i>0): current champion vs products[i+1]
+  const leftProduct = round === 0 ? PRODUCTS[0] : getProduct(champion!);
+  const rightProduct = PRODUCTS[round + 1];
 
   async function recordVote(winnerLevel: number) {
-    if (!pair || submitting) return;
+    if (submitting) return;
     setSubmitting(true);
     setError(null);
+    const lowLevel = Math.min(leftProduct.level, rightProduct.level);
+    const highLevel = Math.max(leftProduct.level, rightProduct.level);
     try {
       const res = await fetch("/api/vote", {
         method: "POST",
@@ -37,8 +43,8 @@ export default function HomePage() {
         body: JSON.stringify({
           sessionId,
           voterName: name || null,
-          lowLevel: pair.low,
-          highLevel: pair.high,
+          lowLevel,
+          highLevel,
           winnerLevel,
         }),
       });
@@ -46,10 +52,10 @@ export default function HomePage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Could not save vote");
       }
-      const newPicks = [...picks, winnerLevel];
-      setPicks(newPicks);
+      setPicks((prev) => [...prev, winnerLevel]);
+      setChampion(winnerLevel);
       const next = round + 1;
-      if (next >= PAIRS.length) setStage("done");
+      if (next >= TOTAL_ROUNDS) setStage("done");
       else setRound(next);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -72,12 +78,12 @@ export default function HomePage() {
           <Intro name={name} setName={setName} onStart={() => setStage("playing")} />
         )}
 
-        {stage === "playing" && pair && lowP && highP && (
+        {stage === "playing" && (
           <Round
             round={round}
-            total={PAIRS.length}
-            low={lowP}
-            high={highP}
+            total={TOTAL_ROUNDS}
+            left={leftProduct}
+            right={rightProduct}
             submitting={submitting}
             onPick={recordVote}
             error={error}
@@ -139,18 +145,17 @@ function Intro({
 /* ------------------------ Round ------------------------ */
 
 function Round({
-  round, total, low, high, submitting, onPick, error,
+  round, total, left, right, submitting, onPick, error,
 }: {
   round: number; total: number;
-  low: { level: number; name: string; image: string };
-  high: { level: number; name: string; image: string };
+  left: { level: number; name: string; image: string };
+  right: { level: number; name: string; image: string };
   submitting: boolean;
   onPick: (winnerLevel: number) => void;
   error: string | null;
 }) {
   return (
     <section className="flex-1 flex flex-col max-w-6xl mx-auto w-full">
-      {/* Progress */}
       <div className="flex items-center justify-between gap-4 mb-6">
         <div className="text-[11px] uppercase tracking-[0.18em] text-ink-500">
           Round <span className="text-ink-900 font-medium">{round + 1}</span> / {total}
@@ -173,8 +178,8 @@ function Round({
       <p className="text-ink-500 text-sm md:text-base mb-8 fade-up">Tap a card to choose.</p>
 
       <div key={round} className="grid grid-cols-2 gap-3 md:gap-8 fade-up">
-        <ChoiceCard product={low} disabled={submitting} onPick={() => onPick(low.level)} />
-        <ChoiceCard product={high} disabled={submitting} onPick={() => onPick(high.level)} />
+        <ChoiceCard product={left} disabled={submitting} onPick={() => onPick(left.level)} />
+        <ChoiceCard product={right} disabled={submitting} onPick={() => onPick(right.level)} />
       </div>
 
       <div className="mt-6 flex items-center justify-center gap-2 text-ink-500 text-xs">
@@ -215,9 +220,6 @@ function ChoiceCard({
           className="object-contain p-3 md:p-6 transition-transform duration-500 group-hover:scale-[1.03]"
           priority
         />
-        <span className="absolute top-3 left-3 md:top-4 md:left-4 text-[10px] md:text-[11px] tracking-[0.2em] uppercase text-ink-500 bg-cream-50/80 backdrop-blur px-2 py-1 rounded-full border border-ink-900/[0.06]">
-          Option {product.level % 2 === 1 ? "A" : "B"}
-        </span>
       </div>
       <div className="px-4 md:px-6 py-4 md:py-5 flex items-end justify-between gap-3">
         <h3 className="font-display text-ink-900 text-lg md:text-2xl leading-tight">
@@ -233,17 +235,23 @@ function ChoiceCard({
 
 /* ------------------------ Done ------------------------ */
 
+function getTopPicks(picks: number[]): number[] {
+  if (picks.length === 0) return [];
+  const losers: number[] = [];
+  for (let i = 0; i < picks.length; i++) {
+    const left = i === 0 ? PRODUCTS[0].level : picks[i - 1];
+    const right = PRODUCTS[i + 1].level;
+    const loser = picks[i] === left ? right : left;
+    losers.push(loser);
+  }
+  const champion = picks[picks.length - 1];
+  // Champion first, then most recently eliminated (runner-up), then one before
+  return [champion, ...losers.slice().reverse().slice(0, 2)];
+}
+
 function Done({ name, picks }: { name: string; picks: number[] }) {
-  const winCount: Record<number, number> = {};
-  picks.forEach((level) => {
-    winCount[level] = (winCount[level] || 0) + 1;
-  });
-
-  const topGifts = PRODUCTS
-    .filter((p) => winCount[p.level] > 0)
-    .sort((a, b) => (winCount[b.level] || 0) - (winCount[a.level] || 0))
-    .slice(0, 3);
-
+  const topLevels = getTopPicks(picks);
+  const topGifts = topLevels.map((lvl) => getProduct(lvl));
   const medals = ["🥇", "🥈", "🥉"];
 
   return (
@@ -281,9 +289,9 @@ function Done({ name, picks }: { name: string; picks: number[] }) {
                   <p className="font-display text-ink-900 text-base md:text-lg leading-tight truncate">
                     {product.name}
                   </p>
-                  <p className="text-ink-500 text-xs mt-0.5">
-                    {winCount[product.level]} win{winCount[product.level] > 1 ? "s" : ""}
-                  </p>
+                  {i === 0 && (
+                    <p className="text-ink-500 text-xs mt-0.5">Your champion — beat all challengers</p>
+                  )}
                 </div>
                 <span className="text-xl shrink-0">{medals[i]}</span>
               </div>

@@ -18,9 +18,6 @@ export async function POST(req: Request) {
     ) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
-    if (highLevel !== lowLevel + 1) {
-      return NextResponse.json({ error: "Pair must be adjacent levels" }, { status: 400 });
-    }
     if (winnerLevel !== lowLevel && winnerLevel !== highLevel) {
       return NextResponse.json({ error: "Winner must be one of the pair" }, { status: 400 });
     }
