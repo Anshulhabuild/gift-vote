@@ -300,9 +300,6 @@ function Done({ name, picks }: { name: string; picks: number[] }) {
         </div>
       )}
 
-      <p className="mt-6 text-ink-500 text-sm">
-        Feel free to share this link with friends in the Habuild community.
-      </p>
     </section>
   );
 }
