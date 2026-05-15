@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { PAIRS, getProduct } from "@/lib/products";
+import { PAIRS, PRODUCTS, getProduct } from "@/lib/products";
 
 type Stage = "intro" | "playing" | "done";
 
@@ -18,6 +18,7 @@ export default function HomePage() {
   const [sessionId, setSessionId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [picks, setPicks] = useState<number[]>([]);
 
   useEffect(() => { setSessionId(makeSessionId()); }, []);
 
@@ -45,6 +46,8 @@ export default function HomePage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Could not save vote");
       }
+      const newPicks = [...picks, winnerLevel];
+      setPicks(newPicks);
       const next = round + 1;
       if (next >= PAIRS.length) setStage("done");
       else setRound(next);
@@ -81,7 +84,7 @@ export default function HomePage() {
           />
         )}
 
-        {stage === "done" && <Done name={name} />}
+        {stage === "done" && <Done name={name} picks={picks} />}
       </div>
     </main>
   );
@@ -230,7 +233,19 @@ function ChoiceCard({
 
 /* ------------------------ Done ------------------------ */
 
-function Done({ name }: { name: string }) {
+function Done({ name, picks }: { name: string; picks: number[] }) {
+  const winCount: Record<number, number> = {};
+  picks.forEach((level) => {
+    winCount[level] = (winCount[level] || 0) + 1;
+  });
+
+  const topGifts = PRODUCTS
+    .filter((p) => winCount[p.level] > 0)
+    .sort((a, b) => (winCount[b.level] || 0) - (winCount[a.level] || 0))
+    .slice(0, 3);
+
+  const medals = ["🥇", "🥈", "🥉"];
+
   return (
     <section className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full fade-up">
       <p className="font-display italic text-terra-500 text-base md:text-lg mb-3">
@@ -243,7 +258,41 @@ function Done({ name }: { name: string }) {
       <p className="mt-6 text-ink-700 text-base md:text-lg leading-relaxed">
         Thank you for your valuable response, it helps us make your experience better.
       </p>
-      <p className="mt-3 text-ink-500 text-sm">
+
+      {topGifts.length > 0 && (
+        <div className="mt-8">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-ink-500 mb-4">Your top picks</p>
+          <div className="flex flex-col gap-3">
+            {topGifts.map((product, i) => (
+              <div
+                key={product.level}
+                className="flex items-center gap-4 bg-white rounded-2xl border border-ink-900/[0.06] shadow-[0_1px_2px_rgba(0,0,0,0.04)] px-4 py-3"
+              >
+                <div className="relative w-14 h-14 shrink-0 rounded-xl overflow-hidden bg-cream-100">
+                  <Image
+                    src={product.image}
+                    alt={product.name}
+                    fill
+                    sizes="56px"
+                    className="object-contain p-1"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-display text-ink-900 text-base md:text-lg leading-tight truncate">
+                    {product.name}
+                  </p>
+                  <p className="text-ink-500 text-xs mt-0.5">
+                    {winCount[product.level]} win{winCount[product.level] > 1 ? "s" : ""}
+                  </p>
+                </div>
+                <span className="text-xl shrink-0">{medals[i]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="mt-6 text-ink-500 text-sm">
         Feel free to share this link with friends in the Habuild community.
       </p>
     </section>
